@@ -1,0 +1,4 @@
+name: entaxi
+steps:
+  - name: Test
+    command: go test ./...
