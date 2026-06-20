@@ -80,8 +80,9 @@ func (c *CLI) runPipeline(args []string) int {
 		return 1
 	}
 
-	// Execute every configured step and stream command output through the CLI.
-	result, err := runner.Run(context.Background(), p, c.Out, c.Err)
+	// Give this execution its own runner while reusing the CLI output streams.
+	r := runner.New(c.Out, c.Err)
+	result, err := r.Run(context.Background(), p)
 	if err != nil {
 		fmt.Fprintf(c.Err, "build error: %v\n", err)
 		return 1

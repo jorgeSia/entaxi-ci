@@ -12,6 +12,22 @@ import (
 	"github.com/jorgeSia/entaxi-ci/internal/pipeline"
 )
 
+// Runner executes pipelines and streams their command output.
+type Runner struct {
+	// Out receives normal runner and command output.
+	Out io.Writer
+	// Err receives command error output.
+	Err io.Writer
+}
+
+// New creates a runner that writes to the supplied output streams.
+func New(out, err io.Writer) *Runner {
+	return &Runner{
+		Out: out,
+		Err: err,
+	}
+}
+
 // Result summarizes one completed pipeline execution.
 type Result struct {
 	// Passed is true only when every step exits successfully.
@@ -23,28 +39,28 @@ type Result struct {
 }
 
 // Run executes a pipeline's steps sequentially and stops at the first failure.
-func Run(ctx context.Context, p pipeline.Pipeline, stdout, stderr io.Writer) (Result, error) {
+func (r *Runner) Run(ctx context.Context, p pipeline.Pipeline) (Result, error) {
 	// Measure the whole pipeline separately from each individual step.
 	started := time.Now()
 
-	fmt.Fprintf(stdout, "Running pipeline in %s\n\n", p.Dir)
+	fmt.Fprintf(r.Out, "Running pipeline in %s\n\n", p.Dir)
 
 	// Pipeline order matters, so steps run one at a time in declaration order.
 	for i, step := range p.Steps {
 		stepStarted := time.Now()
 
-		fmt.Fprintf(stdout, "[%d/%d] %s\n", i+1, len(p.Steps), step.Name)
-		fmt.Fprintf(stdout, "$ %s\n", step.Command)
+		fmt.Fprintf(r.Out, "[%d/%d] %s\n", i+1, len(p.Steps), step.Name)
+		fmt.Fprintf(r.Out, "$ %s\n", step.Command)
 
 		// Stream stdout and stderr while the command runs instead of buffering them.
-		exitCode, err := runCommand(ctx, p.Dir, step.Command, stdout, stderr)
+		exitCode, err := r.runCommand(ctx, p.Dir, step.Command)
 		duration := time.Since(stepStarted)
 		if err != nil {
 			// A real exit code means the user's command ran and the build failed.
 			if exitCode >= 0 {
 				total := time.Since(started)
-				fmt.Fprintf(stdout, "\nStep failed in %s with exit code %d\n", formatDuration(duration), exitCode)
-				fmt.Fprintf(stdout, "Build failed in %s\n", formatDuration(total))
+				fmt.Fprintf(r.Out, "\nStep failed in %s with exit code %d\n", formatDuration(duration), exitCode)
+				fmt.Fprintf(r.Out, "Build failed in %s\n", formatDuration(total))
 				return Result{Passed: false, Duration: total, ExitCode: exitCode}, nil
 			}
 
@@ -52,23 +68,23 @@ func Run(ctx context.Context, p pipeline.Pipeline, stdout, stderr io.Writer) (Re
 			return Result{Passed: false, Duration: time.Since(started), ExitCode: exitCode}, err
 		}
 
-		fmt.Fprintf(stdout, "\nStep passed in %s\n\n", formatDuration(duration))
+		fmt.Fprintf(r.Out, "\nStep passed in %s\n\n", formatDuration(duration))
 	}
 
 	// Reaching the end means every configured step completed successfully.
 	total := time.Since(started)
-	fmt.Fprintf(stdout, "Build passed in %s\n", formatDuration(total))
+	fmt.Fprintf(r.Out, "Build passed in %s\n", formatDuration(total))
 
 	return Result{Passed: true, Duration: total, ExitCode: 0}, nil
 }
 
 // runCommand executes one shell command in the pipeline's working directory.
-func runCommand(ctx context.Context, dir, command string, stdout, stderr io.Writer) (int, error) {
+func (r *Runner) runCommand(ctx context.Context, dir, command string) (int, error) {
 	// CommandContext allows cancellation, while sh -c supports normal shell syntax.
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	cmd.Dir = dir
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
+	cmd.Stdout = r.Out
+	cmd.Stderr = r.Err
 
 	err := cmd.Run()
 	if err == nil {
