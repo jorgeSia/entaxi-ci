@@ -118,7 +118,7 @@ func (c *CLI) runPipeline(args []string) int {
 	// Create and validate the project's pipeline before executing anything.
 	p, err := pipeline.New(dir)
 	if err != nil {
-		fmt.Fprintf(c.Err, "failed to load pipeline: %v\n", err)
+		fmt.Fprintf(c.Err, "failed to create pipeline: %v\n", err)
 		return exitError
 	}
 

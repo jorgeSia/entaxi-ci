@@ -47,7 +47,7 @@ func New(dir string) (Pipeline, error) {
 	// Delegate YAML syntax handling to the parser.
 	pipeline, err := parse(data)
 	if err != nil {
-		return Pipeline{}, err
+		return Pipeline{}, fmt.Errorf("parse pipeline config %q: %w", configPath, err)
 	}
 
 	// Add runtime context that is intentionally not sourced from YAML.
@@ -55,7 +55,7 @@ func New(dir string) (Pipeline, error) {
 
 	// Return only pipelines that are normalized and safe for the runner to consume.
 	if err := pipeline.Validate(); err != nil {
-		return Pipeline{}, err
+		return Pipeline{}, fmt.Errorf("validate pipeline config %q: %w", configPath, err)
 	}
 
 	return pipeline, nil
@@ -63,6 +63,9 @@ func New(dir string) (Pipeline, error) {
 
 // Validate normalizes a pipeline and rejects configurations that cannot run.
 func (p *Pipeline) Validate() error {
+	// Normalize the optional display name without changing internal whitespace.
+	p.Name = strings.TrimSpace(p.Name)
+
 	// A pipeline without steps has no useful work to perform.
 	if len(p.Steps) == 0 {
 		return fmt.Errorf("%s must define at least one step", FileName)
