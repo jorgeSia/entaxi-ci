@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // ResolveDirectory converts path to an absolute path and verifies it is a directory.
@@ -40,4 +41,28 @@ func ReadFile(path string) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+// ResolveUserPath expands a leading ~/ and requires an absolute result.
+func ResolveUserPath(path string) (string, error) {
+	switch {
+	case path == "~":
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve home directory: %w", err)
+		}
+		path = homeDir
+	case strings.HasPrefix(path, "~/"):
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve home directory: %w", err)
+		}
+		path = filepath.Join(homeDir, strings.TrimPrefix(path, "~/"))
+	}
+
+	if !filepath.IsAbs(path) {
+		return "", fmt.Errorf("path %q must be absolute or start with ~/", path)
+	}
+
+	return filepath.Clean(path), nil
 }
