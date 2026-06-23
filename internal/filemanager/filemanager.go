@@ -53,6 +53,29 @@ func EnsureDirectory(path string, perm os.FileMode) error {
 	return nil
 }
 
+// WriteFileExclusive creates path only when it does not already exist.
+func WriteFileExclusive(path string, data []byte, perm os.FileMode) (bool, error) {
+	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, perm)
+	if errors.Is(err, os.ErrExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("create file %q: %w", path, err)
+	}
+
+	// Remove a partially written file so a later attempt can safely try again.
+	if _, err := file.Write(data); err != nil {
+		_ = file.Close()
+		_ = os.Remove(path)
+		return false, fmt.Errorf("write file %q: %w", path, err)
+	}
+	if err := file.Close(); err != nil {
+		_ = os.Remove(path)
+		return false, fmt.Errorf("close file %q: %w", path, err)
+	}
+
+	return true, nil
+}
 
 // ResolveUserPath expands a leading ~/ and requires an absolute result.
 func ResolveUserPath(path string) (string, error) {
