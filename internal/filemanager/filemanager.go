@@ -2,6 +2,7 @@
 package filemanager
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,6 +43,16 @@ func ReadFile(path string) ([]byte, error) {
 
 	return data, nil
 }
+
+// EnsureDirectory creates path and any missing parents without changing existing permissions.
+func EnsureDirectory(path string, perm os.FileMode) error {
+	if err := os.MkdirAll(path, perm); err != nil {
+		return fmt.Errorf("create directory %q: %w", path, err)
+	}
+
+	return nil
+}
+
 
 // ResolveUserPath expands a leading ~/ and requires an absolute result.
 func ResolveUserPath(path string) (string, error) {
